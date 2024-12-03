@@ -41,26 +41,35 @@ def load_weather_data(region_code):
 def format_weather_info(weather_data, area_name=None):
     weather_info_list = []
     try:
+        # 天気予報と降水確率
         time_series = weather_data[0]["timeSeries"]
-        # 各地域の天気情報を取得
-        for area in time_series[0]["areas"]:
+        
+        # 天気予報
+        weather_areas = time_series[0]["areas"]
+        
+        # 降水確率
+        pops_areas = time_series[1]["areas"] if len(time_series) > 1 else []
+        
+        for area in weather_areas:
             if area_name and area["area"]["name"] != area_name:
                 continue  # 指定された地域名と一致しない場合はスキップ
+            area_name_in_data = area["area"]["name"]
+            
+            # 天気予報
             forecast = area["weathers"][0]
-            pops = time_series[1]["areas"][0]["pops"][:4]  # 降水確率
-            temps = weather_data[1]["tempAverage"]["areas"]
-            # 対応する地域の気温を取得
-            temp_max = "N/A"
-            temp_min = "N/A"
-            for temp_area in temps:
-                if temp_area["area"]["name"] == area["area"]["name"]:
-                    temp_max = temp_area["max"]
-                    temp_min = temp_area["min"]
+            
+            # 降水確率を取得
+            pop = "N/A"
+            for pop_area in pops_areas:
+                if pop_area["area"]["name"] == area_name_in_data:
+                    pops = pop_area.get("pops", ["N/A"])
+                    pop = ', '.join(pops) + '%'
                     break
-            weather_info = f"【{area['area']['name']}】\n天気予報: {forecast}\n降水確率: {', '.join(pops)}%\n最高気温: {temp_max}℃, 最低気温: {temp_min}℃\n"
+            
+            weather_info = f"【{area_name_in_data}】\n天気予報: {forecast}\n降水確率: {pop}\n"
             weather_info_list.append(weather_info)
-    except (IndexError, KeyError):
-        weather_info_list.append("天気情報の取得に失敗しました。")
+    except (IndexError, KeyError, TypeError, ValueError) as e:
+        weather_info_list.append(f"天気情報の取得に失敗しました。({e})")
     return weather_info_list
 
 # メインアプリケーション
@@ -88,6 +97,7 @@ def main(page: ft.Page):
             for office_code, office_info in regions[selected_region_code]["offices"].items():
                 prefecture_dropdown.options.append(ft.dropdown.Option(office_code, text=office_info["name"]))
 
+        prefecture_dropdown.value = None
         region_dropdown.update()
         prefecture_dropdown.update()
         weather_info_column.update()
@@ -112,7 +122,6 @@ def main(page: ft.Page):
             else:
                 weather_info_column.controls.append(ft.Text(f"{prefecture_name}の天気情報の取得に失敗しました。", size=16))
 
-        prefecture_dropdown.update()
         weather_info_column.update()
 
     # イベントハンドラをドロップダウンに設定
